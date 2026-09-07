@@ -7,31 +7,33 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - name: Download DINOv3/DINOv2 weights
+      - name: Download encoder weights
         run: |
-          set -e
           declare -A FILES=(
             [dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth]="https://dl.fbaipublicfiles.com/dinov3/dinov3_vitl16/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth"
             [dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth]="https://dl.fbaipublicfiles.com/dinov3/dinov3_vitl16/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth"
-            [dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth]="https://dl.fbaipublicfiles.com/dinov3/dinov3_vitb16/dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth"
             [dinov2_vitl14_reg4_pretrain.pth]="https://dl.fbaipublicfiles.com/dinov2/dinov2_vitl14/dinov2_vitl14_reg4_pretrain.pth"
           )
+          ok=""
+          fail=""
           for name in "${!FILES[@]}"; do
-            echo "fetching $name"
-            curl -fL --retry 3 --retry-delay 10 -A "Mozilla/5.0" -o "$name" "${FILES[$name]}"
-            SZ=$(stat -c%s "$name")
-            echo "$name size=$SZ"
-            if [ "$SZ" -lt 300000000 ]; then echo "size looks wrong, aborting"; exit 1; fi
+            echo "=== fetching $name"
+            if curl -fL --retry 2 --retry-delay 5 -A "Mozilla/5.0" -o "$name" "${FILES[$name]}"; then
+              SZ=$(stat -c%s "$name"); echo "$name size=$SZ"
+              if [ "$SZ" -lt 300000000 ]; then fail="$fail $name(too-small)"; else ok="$ok $name"; fi
+            else
+              fail="$fail $name(http)"
+            fi
           done
+          echo "OK:$ok"; echo "FAIL:$fail"
+          case "$ok" in *dinov3_vitl16_pretrain_sat493m*) ;; *) echo "critical SAT-L missing"; exit 1;; esac
       - name: Upload to release
         run: |
           gh release view weights-v1 -R ln-ccccc/cugmine-data-relay || \
           gh release create weights-v1 -R ln-ccccc/cugmine-data-relay --title "encoder weights relay" \
             --notes "Mirrored public DINOv3/DINOv2 checkpoints for network-restricted access."
-          gh release upload weights-v1 dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth \
-            dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth \
-            dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth \
-            dinov2_vitl14_reg4_pretrain.pth -R ln-ccccc/cugmine-data-relay --clobber
+          shopt -s nullglob
+          gh release upload weights-v1 *.pth -R ln-ccccc/cugmine-data-relay --clobber
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ln-ccccc/cugmine-data-relay
