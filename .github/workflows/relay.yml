@@ -37,3 +37,4 @@ jobs:
             --notes "Mirrored from https://doi.org/10.6084/m9.figshare.29206988 (public dataset) for network-restricted access. Delete after use."
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ln-ccccc/cugmine-data-relay
