@@ -1,0 +1,24 @@
+name: relay
+on: [push, workflow_dispatch]
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Download figshare file
+        run: |
+          curl -fL --retry 3 --retry-delay 10 -A "Mozilla/5.0" \
+            -o cugmine.zip "https://ndownloader.figshare.com/files/53138817"
+          ls -l cugmine.zip
+          SZ=$(stat -c%s cugmine.zip)
+          echo "size=$SZ"
+          if [ "$SZ" -lt 1000000000 ]; then echo "size looks wrong (<1GB), aborting"; exit 1; fi
+      - name: Upload to release
+        run: |
+          gh release create v1 cugmine.zip \
+            --title "CUGMine v7 dataset relay" \
+            --notes "Mirrored from https://doi.org/10.6084/m9.figshare.29206988 (public dataset) for network-restricted access. Delete after use."
+        env:
+          GH_TOKEN: ${{ github.token }}
