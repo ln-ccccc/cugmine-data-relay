@@ -26,7 +26,7 @@ jobs:
             fi
           done
           echo "OK:$ok"; echo "FAIL:$fail"
-          case "$ok" in *dinov3_vitl16_pretrain_sat493m*) ;; *) echo "critical SAT-L missing"; exit 1;; esac
+          case "$ok" in *dinov2_vitl14_reg4_pretrain.pth*) ;; *) echo "critical dinov2 missing"; exit 1;; esac
       - name: Upload to release
         run: |
           gh release view weights-v1 -R ln-ccccc/cugmine-data-relay || \
