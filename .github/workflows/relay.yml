@@ -7,34 +7,31 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - name: Resolve real file URL via figshare API
+      - name: Download DINOv3/DINOv2 weights
         run: |
           set -e
-          curl -fsS -H "User-Agent: Mozilla/5.0" "https://api.figshare.com/v2/articles/29206988" -o article.json
-          python3 - <<'PY'
-          import json
-          d = json.load(open("article.json"))
-          files = d.get("files", [])
-          print("title:", d.get("title"))
-          for f in files:
-              print("file:", f.get("id"), f.get("name"), f.get("size"), f.get("download_url"))
-          assert files, "no files in article"
-          url = files[0]["download_url"]
-          open("url.txt", "w").write(url)
-          PY
-          cat url.txt
-      - name: Download
-        run: |
-          set -e
-          URL=$(cat url.txt)
-          curl -fL --retry 3 --retry-delay 10 -A "Mozilla/5.0" -o cugmine.zip "$URL"
-          SZ=$(stat -c%s cugmine.zip)
-          echo "size=$SZ"
-          if [ "$SZ" -lt 1000000000 ]; then echo "size looks wrong (<1GB), aborting"; exit 1; fi
+          declare -A FILES=(
+            [dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth]="https://dl.fbaipublicfiles.com/dinov3/dinov3_vitl16/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth"
+            [dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth]="https://dl.fbaipublicfiles.com/dinov3/dinov3_vitl16/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth"
+            [dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth]="https://dl.fbaipublicfiles.com/dinov3/dinov3_vitb16/dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth"
+            [dinov2_vitl14_reg4_pretrain.pth]="https://dl.fbaipublicfiles.com/dinov2/dinov2_vitl14/dinov2_vitl14_reg4_pretrain.pth"
+          )
+          for name in "${!FILES[@]}"; do
+            echo "fetching $name"
+            curl -fL --retry 3 --retry-delay 10 -A "Mozilla/5.0" -o "$name" "${FILES[$name]}"
+            SZ=$(stat -c%s "$name")
+            echo "$name size=$SZ"
+            if [ "$SZ" -lt 300000000 ]; then echo "size looks wrong, aborting"; exit 1; fi
+          done
       - name: Upload to release
         run: |
-          gh release create v1 cugmine.zip --title "CUGMine dataset relay" \
-            --notes "Mirrored from https://doi.org/10.6084/m9.figshare.29206988 (public dataset) for network-restricted access. Delete after use."
+          gh release view weights-v1 -R ln-ccccc/cugmine-data-relay || \
+          gh release create weights-v1 -R ln-ccccc/cugmine-data-relay --title "encoder weights relay" \
+            --notes "Mirrored public DINOv3/DINOv2 checkpoints for network-restricted access."
+          gh release upload weights-v1 dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth \
+            dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth \
+            dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth \
+            dinov2_vitl14_reg4_pretrain.pth -R ln-ccccc/cugmine-data-relay --clobber
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ln-ccccc/cugmine-data-relay
