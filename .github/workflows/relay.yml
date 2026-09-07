@@ -7,18 +7,33 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - name: Download figshare file
+      - name: Resolve real file URL via figshare API
         run: |
-          curl -fL --retry 3 --retry-delay 10 -A "Mozilla/5.0" \
-            -o cugmine.zip "https://ndownloader.figshare.com/files/53138817"
-          ls -l cugmine.zip
+          set -e
+          curl -fsS -H "User-Agent: Mozilla/5.0" "https://api.figshare.com/v2/articles/29206988" -o article.json
+          python3 - <<'PY'
+          import json
+          d = json.load(open("article.json"))
+          files = d.get("files", [])
+          print("title:", d.get("title"))
+          for f in files:
+              print("file:", f.get("id"), f.get("name"), f.get("size"), f.get("download_url"))
+          assert files, "no files in article"
+          url = files[0]["download_url"]
+          open("url.txt", "w").write(url)
+          PY
+          cat url.txt
+      - name: Download
+        run: |
+          set -e
+          URL=$(cat url.txt)
+          curl -fL --retry 3 --retry-delay 10 -A "Mozilla/5.0" -o cugmine.zip "$URL"
           SZ=$(stat -c%s cugmine.zip)
           echo "size=$SZ"
           if [ "$SZ" -lt 1000000000 ]; then echo "size looks wrong (<1GB), aborting"; exit 1; fi
       - name: Upload to release
         run: |
-          gh release create v1 cugmine.zip \
-            --title "CUGMine v7 dataset relay" \
+          gh release create v1 cugmine.zip --title "CUGMine dataset relay" \
             --notes "Mirrored from https://doi.org/10.6084/m9.figshare.29206988 (public dataset) for network-restricted access. Delete after use."
         env:
           GH_TOKEN: ${{ github.token }}
